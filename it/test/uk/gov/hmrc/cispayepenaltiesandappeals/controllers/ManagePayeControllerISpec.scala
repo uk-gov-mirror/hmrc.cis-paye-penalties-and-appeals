@@ -34,6 +34,7 @@ class ManagePayeControllerISpec extends BaseSpec
   lazy val getPayeAppealablePenaltiesUrl = s"$servicePrefix/paye/penalties"
   lazy val getAppealablePenaltyUrl = s"$servicePrefix/paye/penalty"
   lazy val createPayeAppealUrl = s"$servicePrefix/paye/appeal"
+  lazy val getPayePenaltiesAllowedUrl = s"$servicePrefix/paye/penalties/access-allowed"
 
   def stubCreatePayeAppealResponse(): Unit =
     stubPost("/rds-datacache-proxy/pas/paye/appeal", Status.CREATED,
@@ -71,6 +72,11 @@ class ManagePayeControllerISpec extends BaseSpec
         penaltyType = Some("PAYE3"),
         penaltyAmount = Some(BigDecimal(999.23))
       )).toString)
+  }
+
+  def stubGetPenaltyAllowedResponse(): Unit = {
+    stubPost("/rds-datacache-proxy/pas/paye/penalties/access-allowed", Status.OK,
+      Json.toJson(GetPenaltyAllowedResponse(allowed = true)).toString)
   }
 
   "PayeController" should {
@@ -161,6 +167,38 @@ class ManagePayeControllerISpec extends BaseSpec
         stubCreatePayeAppealResponse()
 
         val result = wsClient.url(createPayeAppealUrl)
+          .withHttpHeaders("Authorization" -> "Bearer123")
+          .post(jsonBody)
+
+        result.status shouldBe FORBIDDEN
+      }
+    }
+
+    "call getPayePenaltyAllowed" when {
+
+      val jsonBody = Json.toJson(
+        GetPenaltyAllowedRequest(
+          districtNumber = 1L,
+          employerReference = "hdz",
+          uniqueId = 1L
+        ))
+
+      "return a 200:Ok:: authorised request" in {
+        stubAuthorised()
+        stubGetPayeAppealablePenaltiesResponse()
+
+        val result = wsClient.url(getPayePenaltiesAllowedUrl)
+          .withHttpHeaders("Authorization" -> "Bearer123")
+          .post(jsonBody)
+
+        result.status shouldBe OK
+      }
+
+      "return a 403:Forbidden:: unauthorised request" in {
+        stubUnauthorised()
+        stubGetPayeAppealablePenaltiesResponse()
+
+        val result = wsClient.url(getPayePenaltiesAllowedUrl)
           .withHttpHeaders("Authorization" -> "Bearer123")
           .post(jsonBody)
 
